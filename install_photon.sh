@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Photon VM Setup (Debian) + Python venv ==="
+echo "Photon Run Script"
 
 PROJECT_DIR="${PROJECT_DIR:-$HOME/photon_project}"
 VENV_DIR="${VENV_DIR:-$PROJECT_DIR/venv}"
@@ -54,22 +54,18 @@ python -m pip install psycopg2-binary
 
 deactivate
 
-echo ""
-echo "=== Done! How to run ==="
-echo "1) Put your .py files in: $PROJECT_DIR"
-echo "   (pg-python.py, UDP_Client.py, UDP_Server.py, etc.)"
-echo ""
-echo "2) Activate venv:"
+
+echo "1) Activate venv:"
 echo "   source $VENV_DIR/bin/activate"
 echo ""
-echo "3) Test DB login:"
+echo "2) Test DB login:"
 echo "   psql -U student -d photon -h 127.0.0.1"
 echo ""
-echo "4) Run UDP server (terminal 1):"
+echo "3) Run UDP server (terminal 1):"
 echo "   python UDP_Server.py"
 echo ""
-echo "5) Run app (terminal 2):"
+echo "4) Run app (terminal 2), make sure venv is active in this terminal as well:"
 echo "   python pg-python.py"
 echo ""
-echo "6) Deactivate when done:"
+echo "5) Deactivate when done:"
 echo "   deactivate"
