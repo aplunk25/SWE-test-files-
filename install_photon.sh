@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Photon VM Setup (Debian) ==="
+echo "=== Photon VM Setup (Debian) + Python venv ==="
 
-# 1) Update + install packages
+PROJECT_DIR="${PROJECT_DIR:-$HOME/photon_project}"
+VENV_DIR="${VENV_DIR:-$PROJECT_DIR/venv}"
+
+echo "Project dir: $PROJECT_DIR"
+echo "Venv dir:    $VENV_DIR"
+echo ""
+
+# 1) System packages (Python + venv + Postgres)
 sudo apt update
-sudo apt install -y python3 python3-pip postgresql postgresql-contrib
+sudo apt install -y python3 python3-pip python3-venv postgresql postgresql-contrib
 
-# 2) Start + enable postgres
+# 2) Start + enable Postgres
 sudo systemctl enable postgresql
 sudo systemctl restart postgresql
 
 # 3) Create student role + photon DB (idempotent)
-# We run SQL that:
-# - creates role student if missing
-# - ensures password is set
-# - grants createdb
-# - creates database photon owned by student if missing
 sudo -u postgres psql -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
 BEGIN
@@ -36,19 +38,38 @@ BEGIN
 END $$;
 SQL
 
-# 4) Install psycopg2 driver
-python3 -m pip install --upgrade pip
-python3 -m pip install psycopg2-binary
+# 4) Create project folder + venv
+mkdir -p "$PROJECT_DIR"
+
+if [ ! -d "$VENV_DIR" ]; then
+  python3 -m venv "$VENV_DIR"
+fi
+
+# 5) Install Python deps into venv (NOT globally)
+# shellcheck disable=SC1090
+source "$VENV_DIR/bin/activate"
+
+python -m pip install --upgrade pip
+python -m pip install psycopg2-binary
+
+deactivate
 
 echo ""
-echo "=== Done! Quick tests ==="
-echo "1) Test Postgres login:"
+echo "=== Done! How to run ==="
+echo "1) Put your .py files in: $PROJECT_DIR"
+echo "   (pg-python.py, UDP_Client.py, UDP_Server.py, etc.)"
+echo ""
+echo "2) Activate venv:"
+echo "   source $VENV_DIR/bin/activate"
+echo ""
+echo "3) Test DB login:"
 echo "   psql -U student -d photon -h 127.0.0.1"
 echo ""
-echo "2) Run your UDP server in one terminal:"
-echo "   python3 UDP_Server.py"
+echo "4) Run UDP server (terminal 1):"
+echo "   python UDP_Server.py"
 echo ""
-echo "3) Run your DB+UDP app in another terminal:"
-echo "   python3 pg-python.py"
+echo "5) Run app (terminal 2):"
+echo "   python pg-python.py"
 echo ""
-
+echo "6) Deactivate when done:"
+echo "   deactivate"
