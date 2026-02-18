@@ -62,7 +62,7 @@ python -m pip install psycopg2-binary Pillow
 deactivate
 
 echo ""
-echo "Setup Complete ✅"
+echo "Setup Complete "
 echo ""
 echo "1) Activate venv:"
 echo "   source $VENV_DIR/bin/activate"
