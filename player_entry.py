@@ -79,18 +79,24 @@ class EntryTerminal:
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS players (
                             id INTEGER PRIMARY KEY,
-                            codename TEXT NOT NULL
+                            codename TEXT NOT NULL,
+                            team INTEGER NOT NULL DEFAULT 0
                         );
+                    """)
+                    # Add team column if upgrading from an older schema
+                    cur.execute("""
+                        ALTER TABLE players ADD COLUMN IF NOT EXISTS team INTEGER NOT NULL DEFAULT 0;
                     """)
                 conn.commit()
         except Exception as e:
             messagebox.showerror("DB Error", str(e))
 
-    def _db_upsert(self, pid: int, codename: str):
-        """Insert or update a player row."""
+    def _db_upsert(self, pid: int, codename: str, team: int = 0):
+        """Insert or update a player row, including their team (0=red, 1=green)."""
         q = sql.SQL("""
-            INSERT INTO {t} ({idc}, {cc})
-            VALUES (%s, %s)
+            INSERT INTO {t} ({idc}, {cc}, team)
+            VALUES (%s, %s, %s)
+            ON CONFLICT ({idc}) DO UPDATE SET codename = EXCLUDED.codename, team = EXCLUDED.team
         """).format(
             t=sql.Identifier(self.table_name),
             idc=sql.Identifier(self.id_column),
@@ -98,7 +104,7 @@ class EntryTerminal:
         )
         with psycopg2.connect(**self.pg_config) as conn:
             with conn.cursor() as cur:
-                cur.execute(q, (pid, codename))
+                cur.execute(q, (pid, codename, team))
             conn.commit()
 
     def _db_delete(self, pid: int):
@@ -150,7 +156,7 @@ class EntryTerminal:
             self.create_hardware_id_popup()
 
         try:
-            self._db_upsert(pid, code)
+            self._db_upsert(pid, code, team_idx)
             checkbox_var.set(True)
 
         except Exception as e:
@@ -581,12 +587,15 @@ class EntryTerminal:
         submit_button.grid(row=1, column=0, columnspan=2, pady=10)
 
 
-def entry_terminal(pg_config):
-    root = tk.Tk()
-    app = EntryTerminal(root, pg_config)
-    root.mainloop()
+def entry_terminal(root, pg_config):
+    # Use the root Tk() passed in from python-pg.py — never create a second one
+    win = tk.Toplevel(root)
+    app = EntryTerminal(win, pg_config)
 
 
 if __name__ == "__main__":
-    entry_terminal({"dbname": "photon", "user": "student",
-                   "host": "localhost", "port": 5432})
+    root = tk.Tk()
+    root.withdraw()
+    entry_terminal(root, {"dbname": "photon", "user": "student",
+                          "host": "localhost", "port": 5432})
+    root.mainloop()
