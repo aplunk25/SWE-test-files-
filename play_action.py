@@ -10,7 +10,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 import socket
 import threading
-import time
+import queue
 import psycopg2
 from psycopg2 import sql
 
@@ -57,6 +57,9 @@ class PlayActionDisplay:
         self.hit_feed: list[str] = []   # recent hit messages
         self.MAX_FEED      = 8
 
+        # Thread-safe queue: UDP thread pushes events, main thread drains it
+        self._event_queue: queue.Queue = queue.Queue()
+
         # ── Window ───────────────────────────────────────────────────────────
         self.root = tk.Toplevel(parent)
         self.root.title("PHOTON – Play Action")
@@ -71,31 +74,30 @@ class PlayActionDisplay:
             target=self._udp_listener, daemon=True)
         self._udp_thread.start()
 
-        self._tick()   # start 1-second timer
+        self._poll_queue()  # drain event queue on main thread
+        self._tick()        # start 1-second timer
 
     # ─────────────────────────────────────────────────────────────────────────
     # DB helpers
     # ─────────────────────────────────────────────────────────────────────────
 
     def _load_players_from_db(self):
-        """
-        Load all players from DB.  Since the DB doesn't store team assignment,
-        we split by entry order (first 20 → red, next 20 → green).
-        Adjust this logic if you add a 'team' column later.
-        """
+        """Load all players from DB, using the saved team column (0=red, 1=green)."""
         try:
             with psycopg2.connect(**self.pg_config) as conn:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT id, codename FROM players ORDER BY id;")
+                    cur.execute("SELECT id, codename, team FROM players ORDER BY id;")
                     rows = cur.fetchall()
 
-            for i, (pid, codename) in enumerate(rows):
-                team_idx = 0 if i < 20 else 1
+            for pid, codename, team_idx in rows:
+                if team_idx not in (0, 1):
+                    team_idx = 0  # fallback for any bad data
                 self.players[team_idx][str(pid)] = {
                     "codename": codename,
                     "score":    BASE_SCORE,
                     "hits":     0,
                 }
+            print(f"[PlayAction] Loaded {len(self.players[0])} red, {len(self.players[1])} green players.")
         except Exception as e:
             print(f"[PlayAction] DB load error: {e}")
 
@@ -174,8 +176,24 @@ class PlayActionDisplay:
         if len(self.hit_feed) > self.MAX_FEED:
             self.hit_feed.pop()
 
-        # Schedule UI update on main thread
-        self.root.after(0, self._refresh_ui)
+        # Put a refresh event on the queue — never call root.after() from a worker thread on macOS
+        self._event_queue.put("refresh")
+
+    def _poll_queue(self):
+        """Drain the event queue on the main thread. Called every 100 ms via root.after."""
+        needs_refresh = False
+        try:
+            while True:
+                self._event_queue.get_nowait()
+                needs_refresh = True
+        except queue.Empty:
+            pass
+
+        if needs_refresh:
+            self._refresh_ui()
+
+        if self.running:
+            self.root.after(100, self._poll_queue)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Timer
@@ -284,8 +302,9 @@ class PlayActionDisplay:
         self.green_board_frame.pack(side=tk.LEFT, fill=tk.BOTH,
                                     expand=True, padx=(4, 0))
 
-        # ESC to exit
+        # ESC or F3 → close play action and return to player entry
         self.root.bind("<Escape>", lambda e: self._end_game())
+        self.root.bind("<F3>", lambda e: self._end_game())
 
     def _make_leaderboard(self, parent, team_idx: int) -> tk.Frame:
         color = TEAM_COLORS[team_idx]
