@@ -14,17 +14,17 @@ import queue
 import psycopg2
 from psycopg2 import sql
 
-# ── UDP listener config ──────────────────────────────────────────────────────
+#UDP listener config
 LISTEN_IP   = "0.0.0.0"
 LISTEN_PORT = 7501          # same port the server already uses
 BUFFER_SIZE = 1024
 
-# ── Game settings ────────────────────────────────────────────────────────────
+#Game settings 
 GAME_DURATION_SECONDS = 360   # 6-minute game
 HIT_SCORE             = 10    # points per hit
 BASE_SCORE            = 0
 
-# ── Colours  (neon arcade palette matching the Photon logo) ─────────────────
+ 
 BG          = "#0a0a12"
 PANEL_BG    = "#10101e"
 RED_COLOR   = "#ff2244"
@@ -46,7 +46,7 @@ class PlayActionDisplay:
         self.pg_config.setdefault("host", "localhost")
         self.pg_config.setdefault("port", 5432)
 
-        # ── State ────────────────────────────────────────────────────────────
+        #State
         # players[team_idx] = { equipment_id: {"codename": str, "score": int, "hits": int} }
         self.players: list[dict] = [{}, {}]
         self._load_players_from_db()
@@ -57,10 +57,10 @@ class PlayActionDisplay:
         self.hit_feed: list[str] = []   # recent hit messages
         self.MAX_FEED      = 8
 
-        # Thread-safe queue: UDP thread pushes, main thread drains
+        
         self._event_queue: queue.Queue = queue.Queue()
 
-        # ── Window ───────────────────────────────────────────────────────────
+        # Window 
         self.root = tk.Toplevel(parent)
         self.root.title("PHOTON – Play Action")
         self.root.configure(bg=BG)
@@ -69,7 +69,7 @@ class PlayActionDisplay:
         self._build_fonts()
         self._build_ui()
 
-        # ── Background threads ───────────────────────────────────────────────
+        # Background threads 
         self._udp_thread = threading.Thread(
             target=self._udp_listener, daemon=True)
         self._udp_thread.start()
@@ -78,9 +78,9 @@ class PlayActionDisplay:
         self._poll_queue()  # drain event queue safely on main thread
         self._tick()        # start 1-second timer
 
-    # ─────────────────────────────────────────────────────────────────────────
+    
     # DB helpers
-    # ─────────────────────────────────────────────────────────────────────────
+    
 
     def _load_players_from_db(self):
         """Load all players from DB using the saved team column (0=red, 1=green)."""
@@ -114,9 +114,9 @@ class PlayActionDisplay:
                 return idx
         return None
 
-    # ─────────────────────────────────────────────────────────────────────────
+    
     # UDP listener (runs in background thread)
-    # ─────────────────────────────────────────────────────────────────────────
+    
 
     def _udp_listener(self):
         """
@@ -180,9 +180,7 @@ class PlayActionDisplay:
         # Put event on queue — never call root.after() from a worker thread on macOS
         self._event_queue.put("refresh")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Timer
-    # ─────────────────────────────────────────────────────────────────────────
+    
 
     def _poll_queue(self):
         """Drain event queue on main thread every 100 ms — safe on macOS."""
@@ -217,9 +215,7 @@ class PlayActionDisplay:
         color = RED_COLOR if self.time_left <= 30 else CYAN
         self.timer_label.configure(fg=color)
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Font setup
-    # ─────────────────────────────────────────────────────────────────────────
+    
 
     def _build_fonts(self):
         self.font_title    = tkfont.Font(family="Courier", size=22, weight="bold")
@@ -231,16 +227,16 @@ class PlayActionDisplay:
         self.font_feed     = tkfont.Font(family="Courier", size=11)
         self.font_gameover = tkfont.Font(family="Courier", size=48, weight="bold")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # UI construction
-    # ─────────────────────────────────────────────────────────────────────────
+    
+    # UI 
+    
 
     def _build_ui(self):
         # ── Top bar: title + timer ───────────────────────────────────────────
         top = tk.Frame(self.root, bg=PANEL_BG, pady=6)
         top.pack(fill=tk.X)
 
-        tk.Label(top, text="⚡ PHOTON  –  PLAY ACTION ⚡",
+        tk.Label(top, text="PHOTON Leaderboard",
                  font=self.font_title, bg=PANEL_BG, fg=GOLD).pack()
 
         self.timer_var = tk.StringVar(value="06:00")
@@ -248,7 +244,7 @@ class PlayActionDisplay:
                                     font=self.font_timer, bg=PANEL_BG, fg=CYAN)
         self.timer_label.pack()
 
-        # ── Middle: team score banner ────────────────────────────────────────
+        #Middle: team score banner
         banner = tk.Frame(self.root, bg=BG, pady=4)
         banner.pack(fill=tk.X)
 
@@ -269,7 +265,7 @@ class PlayActionDisplay:
             else:
                 self.green_score_label = score_lbl
 
-        # ── Bottom section: leaderboards + hit feed ──────────────────────────
+        #leaderboards + hit feed
         bottom = tk.Frame(self.root, bg=BG)
         bottom.pack(fill=tk.BOTH, expand=True, padx=8, pady=6)
 
@@ -278,7 +274,7 @@ class PlayActionDisplay:
         self.red_board_frame.pack(side=tk.LEFT, fill=tk.BOTH,
                                   expand=True, padx=(0, 4))
 
-        # Hit feed (centre column)
+        # Hit feed
         feed_outer = tk.Frame(bottom, bg=PANEL_BG, bd=1, relief=tk.FLAT)
         feed_outer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4)
 
@@ -338,9 +334,7 @@ class PlayActionDisplay:
 
         return outer
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # UI refresh
-    # ─────────────────────────────────────────────────────────────────────────
+    
 
     def _refresh_ui(self):
         self._refresh_scores()
@@ -398,9 +392,10 @@ class PlayActionDisplay:
             else:
                 lbl.configure(text="", fg=GREY)
 
-    # ─────────────────────────────────────────────────────────────────────────
+    
+    
     # Game over
-    # ─────────────────────────────────────────────────────────────────────────
+    
 
     def _game_over(self):
         self.running = False
@@ -434,9 +429,9 @@ class PlayActionDisplay:
         self.root.destroy()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Convenience launcher (matches the on_close callback pattern used elsewhere)
-# ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 def launch_play_action(parent, pg_config: dict, game_seconds: int = GAME_DURATION_SECONDS):
     """Call this as the on_close callback of CountdownTimer."""
