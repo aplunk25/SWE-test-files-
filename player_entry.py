@@ -92,18 +92,13 @@ class EntryTerminal:
 
     def _db_upsert(self, pid: int, codename: str, team: int = 0):
         """Insert or update a player row, including team (0=red, 1=green)."""
-        q = sql.SQL("""
-            INSERT INTO {t} ({idc}, {cc}, team)
-            VALUES (%s, %s, %s)
-            ON CONFLICT ({idc}) DO UPDATE SET codename = EXCLUDED.codename, team = EXCLUDED.team
-        """).format(
-            t=sql.Identifier(self.table_name),
-            idc=sql.Identifier(self.id_column),
-            cc=sql.Identifier(self.codename_column),
-        )
         with psycopg2.connect(**self.pg_config) as conn:
             with conn.cursor() as cur:
-                cur.execute(q, (pid, codename, team))
+                cur.execute("DELETE FROM players WHERE id = %s;", (pid,))
+                cur.execute(
+                    "INSERT INTO players (id, codename, team) VALUES (%s, %s, %s);",
+                    (pid, codename, team)
+                )
             conn.commit()
 
     def _db_delete(self, pid: int):
@@ -586,10 +581,18 @@ class EntryTerminal:
         submit_button.grid(row=1, column=0, columnspan=2, pady=10)
 
 
-def entry_terminal(root, pg_config):
-    # Use the root Tk() passed in — never create a second one
-    win = tk.Toplevel(root)
-    app = EntryTerminal(win, pg_config)
+def entry_terminal(root_or_config, pg_config=None):
+    if pg_config is None:
+        # Called old way from python-pg.py: entry_terminal(connection_params)
+        pg_config = root_or_config
+        root = tk.Tk()
+        app = EntryTerminal(root, pg_config)
+        root.mainloop()
+    else:
+        # Called new way: entry_terminal(root, pg_config)
+        root = root_or_config
+        win = tk.Toplevel(root)
+        app = EntryTerminal(win, pg_config)
 
 
 if __name__ == "__main__":
