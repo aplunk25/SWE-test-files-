@@ -57,7 +57,7 @@ class PlayActionDisplay:
         self.hit_feed: list[str] = []   # recent hit messages
         self.MAX_FEED      = 8
 
-        # Thread-safe queue: UDP thread pushes events, main thread drains it
+        # Thread-safe queue: UDP thread pushes, main thread drains
         self._event_queue: queue.Queue = queue.Queue()
 
         # ── Window ───────────────────────────────────────────────────────────
@@ -74,15 +74,15 @@ class PlayActionDisplay:
             target=self._udp_listener, daemon=True)
         self._udp_thread.start()
 
-        self._poll_queue()  # drain event queue on main thread
-        self._tick()        # start 1-second timer
+        self._poll_queue()  # drain event queue safely on main thread
+        self._tick()       # start 1-second timer
 
     # ─────────────────────────────────────────────────────────────────────────
     # DB helpers
     # ─────────────────────────────────────────────────────────────────────────
 
     def _load_players_from_db(self):
-        """Load all players from DB, using the saved team column (0=red, 1=green)."""
+        """Load all players from DB using the saved team column (0=red, 1=green)."""
         try:
             with psycopg2.connect(**self.pg_config) as conn:
                 with conn.cursor() as cur:
@@ -91,7 +91,7 @@ class PlayActionDisplay:
 
             for pid, codename, team_idx in rows:
                 if team_idx not in (0, 1):
-                    team_idx = 0  # fallback for any bad data
+                    team_idx = 0
                 self.players[team_idx][str(pid)] = {
                     "codename": codename,
                     "score":    BASE_SCORE,
@@ -176,11 +176,15 @@ class PlayActionDisplay:
         if len(self.hit_feed) > self.MAX_FEED:
             self.hit_feed.pop()
 
-        # Put a refresh event on the queue — never call root.after() from a worker thread on macOS
+        # Put event on queue — never call root.after() from a worker thread on macOS
         self._event_queue.put("refresh")
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # Timer
+    # ─────────────────────────────────────────────────────────────────────────
+
     def _poll_queue(self):
-        """Drain the event queue on the main thread. Called every 100 ms via root.after."""
+        """Drain event queue on main thread every 100 ms — safe on macOS."""
         needs_refresh = False
         try:
             while True:
@@ -188,16 +192,10 @@ class PlayActionDisplay:
                 needs_refresh = True
         except queue.Empty:
             pass
-
         if needs_refresh:
             self._refresh_ui()
-
         if self.running:
             self.root.after(100, self._poll_queue)
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # Timer
-    # ─────────────────────────────────────────────────────────────────────────
 
     def _tick(self):
         if not self.running:
