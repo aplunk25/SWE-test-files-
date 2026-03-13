@@ -74,8 +74,9 @@ class PlayActionDisplay:
             target=self._udp_listener, daemon=True)
         self._udp_thread.start()
 
+        self._refresh_ui()   # populate leaderboards immediately on open
         self._poll_queue()  # drain event queue safely on main thread
-        self._tick()       # start 1-second timer
+        self._tick()        # start 1-second timer
 
     # ─────────────────────────────────────────────────────────────────────────
     # DB helpers
