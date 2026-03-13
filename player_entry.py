@@ -83,7 +83,6 @@ class EntryTerminal:
                             team INTEGER NOT NULL DEFAULT 0
                         );
                     """)
-                    # Add team column if upgrading from an older schema
                     cur.execute("""
                         ALTER TABLE players ADD COLUMN IF NOT EXISTS team INTEGER NOT NULL DEFAULT 0;
                     """)
@@ -92,7 +91,7 @@ class EntryTerminal:
             messagebox.showerror("DB Error", str(e))
 
     def _db_upsert(self, pid: int, codename: str, team: int = 0):
-        """Insert or update a player row, including their team (0=red, 1=green)."""
+        """Insert or update a player row, including team (0=red, 1=green)."""
         q = sql.SQL("""
             INSERT INTO {t} ({idc}, {cc}, team)
             VALUES (%s, %s, %s)
@@ -588,7 +587,7 @@ class EntryTerminal:
 
 
 def entry_terminal(root, pg_config):
-    # Use the root Tk() passed in from python-pg.py — never create a second one
+    # Use the root Tk() passed in — never create a second one
     win = tk.Toplevel(root)
     app = EntryTerminal(win, pg_config)
 
